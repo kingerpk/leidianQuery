@@ -21,8 +21,10 @@ import org.geotools.feature.FeatureCollections;
 import org.geotools.filter.text.cql2.CQL;
 import org.geotools.filter.text.cql2.CQLException;
 import org.geotools.geojson.feature.FeatureJSON;
+import org.geotools.geometry.jts.GeometryBuilder;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
+import org.junit.Test;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.geometry.MismatchedDimensionException;
 import org.opengis.referencing.FactoryException;
@@ -45,6 +47,17 @@ public class Mr extends HttpServlet {
 		doPost(req, resp);
 	}
 	
+	@Test
+	public void test(){
+		
+		GeometryBuilder gb=new GeometryBuilder();
+		Point p=gb.point(114, 22);
+		Geometry geo=p.buffer(0.009*2,4);
+		Coordinate[] coords=geo.getCoordinates();
+		for(int i=0;i<coords.length;i++){
+			System.out.println(coords[i]);
+		}
+	}
 
 
 	protected void doPost(HttpServletRequest req, HttpServletResponse resp)
@@ -87,7 +100,7 @@ public class Mr extends HttpServlet {
 			IOUtil.pushData(resp, e1.getMessage());
 			return;
 		}
-		double DpreKM=1/111.11;
+		double DpreKM=0.009;
 		double KM=Double.parseDouble(req.getParameter("buffer"));
 		double x=Double.parseDouble(req.getParameter("x"));
 		double y=Double.parseDouble(req.getParameter("y"));

@@ -4,116 +4,144 @@
 package web;
 
 import java.io.File;
-import java.io.StringWriter;
-import java.net.URL;
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFinder;
+import org.geotools.data.DefaultTransaction;
+import org.geotools.data.Transaction;
 import org.geotools.data.simple.SimpleFeatureCollection;
-import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
-import org.geotools.feature.DefaultFeatureCollection;
+import org.geotools.data.simple.SimpleFeatureStore;
+import org.geotools.feature.FeatureCollections;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
-import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
-import org.geotools.geojson.feature.FeatureJSON;
-import org.geotools.referencing.crs.DefaultGeographicCRS;
+import org.geotools.geometry.jts.GeometryBuilder;
 import org.junit.Test;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
-import util.IOUtil;
+import vo.MyPoint;
 
-import com.vividsolutions.jts.awt.PointShapeFactory.Point;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryCollection;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.MultiLineString;
-import com.vividsolutions.jts.geom.MultiPolygon;
-import com.vividsolutions.jts.geom.Polygon;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.vividsolutions.jts.geom.Point;
 
 /**
  * @author lin
  *
  */
-public class T {
+public class T extends HttpServlet{
 	
 	public T(){}
 	
+	@Override
+	protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+			throws ServletException, IOException {
+		doPost(req, resp);
+	}
 
-	
-	@Test
-	public void te() throws Exception{
-		SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
-		//set the name
-		b.setName( "Flag" );
+	@Override
+	protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+			throws ServletException, IOException {
+		
+		String pointStr=req.getParameter("points"); 
+		Gson gson=new Gson();
+		java.lang.reflect.Type type= new TypeToken<List<MyPoint>>(){}.getType();
+		List<MyPoint> points= gson.fromJson(pointStr,type);
+		try {
+			addPoint(points);
+			resp.getWriter().write("添加成功");
+		} catch (Exception e) {
+			resp.getWriter().write(e.getMessage());
+			e.printStackTrace();
+		}
+	}
 
-		//add some properties
-		b.add( "name", String.class );
+	public void addPoint(List<MyPoint> points) throws Exception{
+		File file = new File(Query.getPath()+"/shp/station.shp");
+		Map map = new HashMap();
+		map.put( "url", file.toURL() );
+		DataStore dataStore = DataStoreFinder.getDataStore(map);
 
-		//add a geometry property
-		b.setCRS( DefaultGeographicCRS.WGS84 ); // set crs first
-		b.add( "location", MultiPolygon.class); // then add geometry
-
-		//build the type
-		final SimpleFeatureType TYPE = b.buildFeatureType();
-		double DpreKM=1/111.11;
-		double KM=1;
-		String path="F:/temdata/粤港供水/leida.shp";
-		Map<String, URL> params=new HashMap<String, URL>();
-		params.put("url", new File(path).toURL());
-		DataStore datastore=DataStoreFinder.getDataStore(params);
-		SimpleFeatureSource sf= datastore.getFeatureSource("leida");
-		SimpleFeatureCollection features=null;
-		features = sf.getFeatures();
-		SimpleFeatureIterator fi= features.features();
-		MultiPolygon mp=null;
-		SimpleFeatureBuilder sb=new SimpleFeatureBuilder(TYPE);
-		DefaultFeatureCollection dfc=new DefaultFeatureCollection("my", TYPE);
-		GeometryFactory factory = org.geotools.geometry.jts.FactoryFinder.getGeometryFactory(null);
-		List<Geometry> geos=new ArrayList<Geometry>();
-		while(fi.hasNext()){
-			
-			SimpleFeature sff=fi.next();
-			MultiLineString ml=(MultiLineString)sff.getDefaultGeometry();
-			com.vividsolutions.jts.geom.Geometry geo= ml.buffer(KM*DpreKM);
-			geos.add(geo);
-			sb.add("fuuu");
-			sb.add(geo);
-			SimpleFeature outputf=sb.buildFeature(null);
-			dfc.add(outputf);
+		SimpleFeatureCollection featureColl=FeatureCollections.newCollection();
+		SimpleFeatureSource featureSource=dataStore.getFeatureSource("station");
+		
+		SimpleFeatureType featureType=featureSource.getSchema();
+		SimpleFeatureBuilder featureBuilder=new SimpleFeatureBuilder(featureType);
+		GeometryBuilder gb=new GeometryBuilder();
+		
+		for(MyPoint mpoint:points){
+			Point point=gb.point(mpoint.getLon(),mpoint.getLat());
+			featureBuilder.add(point);
+			featureBuilder.add(1);
+			featureBuilder.add(mpoint.getType());
+			SimpleFeature feature=featureBuilder.buildFeature(null);
+			featureColl.add(feature);
 		}
 		
-		GeometryCollection geocollection=(GeometryCollection)factory.buildGeometry(geos);
 		
-		SimpleFeatureTypeBuilder b1 = new SimpleFeatureTypeBuilder();
-		//set the name
-		b1.setName( "Flag" );
-
-		//add some properties
-		b1.add( "name", String.class );
-
-		//add a geometry property
-		b1.setCRS( DefaultGeographicCRS.WGS84 ); // set crs first
-		b1.add( "location", Polygon.class); // then add geometry
-
-		//build the type
-		final SimpleFeatureType TYPE1 = b1.buildFeatureType();
-		SimpleFeatureBuilder sb1=new SimpleFeatureBuilder(TYPE1);
-		sb1.add("fk");
-		sb1.add(geocollection.buffer(DpreKM*KM));
-		SimpleFeature fallS= sb1.buildFeature("");
 		
-		FeatureJSON fjson = new FeatureJSON();
-		StringWriter writer = new StringWriter();
+		Transaction insertT=new DefaultTransaction("insert");
+		SimpleFeatureStore featureStore=(SimpleFeatureStore)featureSource;
+		featureStore.setTransaction(insertT);
+		
+		featureStore.addFeatures(featureColl);
+		insertT.commit();
+		insertT.close();
+	}
 
-		fjson.writeFeature(fallS, writer);
+	@Test
+	public void test(){
+		String str="{[{lon:113.187326875,lat:24.316429921875,type:'u'},{lon:114.417795625,lat:23.327660390625,type:'a'},{lon:112.56110617187,lat:23.020043203125,type:'b'}]}";
+		java.lang.reflect.Type type= new TypeToken<List<MyPoint>>(){}.getType();
+		Gson gson=new Gson();
+		List<MyPoint> points= gson.fromJson(str,type);
+	}
+	
+	public void te() throws Exception{
+		
+		MyPoint p=new MyPoint();
+		p.setLat(1);
+		p.setLon(2);
+		p.setType("abc");
+		
+		Gson gson=new Gson();
+		System.out.println(gson.toJson(p));
+		
+		File file = new File("F:/temdata/newjob/station.shp");
+		Map map = new HashMap();
+		map.put( "url", file.toURL() );
+		DataStore dataStore = DataStoreFinder.getDataStore(map);
 
-		String json = writer.toString();
-		System.out.println(json);
+		SimpleFeatureCollection featureColl=FeatureCollections.newCollection();
+		SimpleFeatureSource featureSource=dataStore.getFeatureSource("station");
+		
+		SimpleFeatureType featureType=featureSource.getSchema();
+		GeometryBuilder gb=new GeometryBuilder();
+		Point point=gb.point(109.499,23.44);
+		SimpleFeatureBuilder featureBuilder=new SimpleFeatureBuilder(featureType);
+		featureBuilder.add(point);
+		featureBuilder.add(1);
+		featureBuilder.add("b");
+		SimpleFeature feature=featureBuilder.buildFeature(null);
+		featureColl.add(feature);
+		
+		Transaction insertT=new DefaultTransaction("insert");
+		SimpleFeatureStore featureStore=(SimpleFeatureStore)featureSource;
+		featureStore.setTransaction(insertT);
+		
+		featureStore.addFeatures(featureColl);
+		insertT.commit();
+		insertT.close();
+		
 	}
 	
 }

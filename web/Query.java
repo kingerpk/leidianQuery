@@ -102,7 +102,7 @@ public class Query extends HttpServlet {
 			}
 		}
 		
-		double DpreKM=1/111.11;
+		double DpreKM=0.009;
 		double KM=Double.parseDouble(req.getParameter("buffer"));
 		String path=getPath()+"/shp/leida.shp";
 		Map<String, URL> params=new HashMap<String, URL>();
@@ -117,13 +117,11 @@ public class Query extends HttpServlet {
 		while(fi.hasNext()){
 			
 			SimpleFeature sff=fi.next();
-			MultiLineString ml=(MultiLineString)sff.getDefaultGeometry();
-			com.vividsolutions.jts.geom.Geometry geo= ml.buffer(KM*DpreKM);
-			geos.add((Geometry) geo);
+			geos.add((Geometry) sff.getDefaultGeometry());
 		}
 		
 		GeometryCollection geocollection=(GeometryCollection)factory.buildGeometry(geos);
-		Geometry buffGeo=geocollection.buffer(KM*DpreKM);
+		Geometry buffGeo=geocollection.union().buffer(KM*DpreKM);
 		Geometry ResultBuffGeo=null;
 		SimpleFeatureCollection queryResult=null;
 		SimpleFeatureCollection newCrsSfc= FeatureCollections.newCollection();
